@@ -531,6 +531,7 @@
 
   <script>
     const STORAGE_KEY = "minimal-strength-tracker-html-v3";
+    const DRAFT_KEY = "minimal-strength-tracker-draft-v1";
     const DEFAULT_DAY = "Push";
 
     const defaultProgram = {
@@ -564,6 +565,11 @@
     let activeTab = "log";
     let selectedDay = state.activeDay || DEFAULT_DAY;
     let currentLog = buildLogFromProgram(selectedDay);
+    let currentSessionMeta = {
+      date: todayISO(),
+      readiness: "Normal",
+      notes: ""
+    };
     let timerSeconds = 0;
     let timerRunning = false;
     let timerInterval = null;
@@ -603,6 +609,52 @@
     function saveState() {
       state.activeDay = selectedDay;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    function saveDraft() {
+      const draft = {
+        selectedDay,
+        currentLog,
+        currentSessionMeta,
+        timerSeconds,
+        timerRunning,
+        savedAt: Date.now()
+      };
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    }
+
+    function loadDraft() {
+      try {
+        const raw = localStorage.getItem(DRAFT_KEY);
+        if (!raw) return false;
+
+        const draft = JSON.parse(raw);
+        if (!draft || !Array.isArray(draft.currentLog)) return false;
+
+        selectedDay = safeDay(draft.selectedDay || DEFAULT_DAY);
+        currentLog = draft.currentLog;
+        currentSessionMeta = {
+          date: draft.currentSessionMeta?.date || todayISO(),
+          readiness: draft.currentSessionMeta?.readiness || "Normal",
+          notes: draft.currentSessionMeta?.notes || ""
+        };
+
+        timerSeconds = Number(draft.timerSeconds) || 0;
+        timerRunning = Boolean(draft.timerRunning) && timerSeconds > 0;
+
+        if (timerRunning) {
+          startTimerLoop();
+        }
+
+        return true;
+      } catch (error) {
+        console.warn("Failed to restore draft", error);
+        return false;
+      }
+    }
+
+    function clearDraft() {
+      localStorage.removeItem(DRAFT_KEY);
     }
 
     function normalizeState(candidate) {
@@ -755,7 +807,7 @@
       renderTimer();
     }
 
-    function playTone(frequency = 880, duration = 120, type = "sine", volume = 0.03) {
+    function playTone(frequency = 880, duration = 180, type = "square", volume = 0.12) {
       try {
         const AudioContextClass = window.AudioContext || window.webkitAudioContext;
         if (!AudioContextClass) return;
@@ -790,18 +842,18 @@
 
     function playCountdownCue(secondsRemaining) {
       if (secondsRemaining <= 0) {
-        playTone(520, 600, "triangle", 0.05);
+        playTone(520, 900, "square", 0.18);
         return;
       }
 
       const frequency = 700 + secondsRemaining * 60;
-      playTone(frequency, 100, "sine", 0.035);
+      playTone(frequency, 180, "square", 0.12);
     }
 
     function unlockAudio() {
       if (audioUnlocked) return;
       audioUnlocked = true;
-      playTone(440, 1, "sine", 0.0001);
+      playTone(440, 1, "square", 0.0001);
     }
 
     function startTimerLoop() {
@@ -876,17 +928,17 @@
             </div>
             <div>
               <label>Date</label>
-              <input id="sessionDate" type="date" value="${todayISO()}" />
+              <input id="sessionDate" type="date" value="${escapeHtml(currentSessionMeta.date || todayISO())}" />
             </div>
             <div>
               <label>Readiness</label>
               <select id="readinessSelect">
-                ${["Low", "Normal", "High"].map(value => `<option value="${value}">${value}</option>`).join("")}
+                ${["Low", "Normal", "High"].map(value => `<option value="${value}" ${value === currentSessionMeta.readiness ? "selected" : ""}>${value}</option>`).join("")}
               </select>
             </div>
             <div>
               <label>Session notes</label>
-              <input id="sessionNotes" placeholder="Energy, soreness, run fatigue" />
+              <input id="sessionNotes" placeholder="Energy, soreness, run fatigue" value="${escapeHtml(currentSessionMeta.notes || "")}" />
             </div>
           </div>
         </section>
@@ -904,7 +956,23 @@
       document.getElementById("workoutSelect").addEventListener("change", event => {
         selectedDay = event.target.value;
         currentLog = buildLogFromProgram(selectedDay);
+        saveDraft();
         render();
+      });
+
+      document.getElementById("sessionDate").addEventListener("input", event => {
+        currentSessionMeta.date = event.target.value;
+        saveDraft();
+      });
+
+      document.getElementById("readinessSelect").addEventListener("change", event => {
+        currentSessionMeta.readiness = event.target.value;
+        saveDraft();
+      });
+
+      document.getElementById("sessionNotes").addEventListener("input", event => {
+        currentSessionMeta.notes = event.target.value;
+        saveDraft();
       });
 
       document.getElementById("saveWorkoutBtn").addEventListener("click", saveWorkout);
@@ -949,6 +1017,7 @@
           const set = Number(event.target.dataset.set);
           const field = event.target.dataset.field;
           currentLog[ex].sets[set][field] = event.target.value;
+          saveDraft();
           updateVolumeOnly();
         });
       });
@@ -956,6 +1025,7 @@
       container.querySelectorAll("textarea[data-note-ex]").forEach(textarea => {
         textarea.addEventListener("input", event => {
           currentLog[Number(event.target.dataset.noteEx)].notes = event.target.value;
+          saveDraft();
         });
       });
 
@@ -964,6 +1034,7 @@
           const ex = Number(event.currentTarget.dataset.doneEx);
           const set = Number(event.currentTarget.dataset.doneSet);
           currentLog[ex].sets[set].done = !currentLog[ex].sets[set].done;
+          saveDraft();
           setTimer(currentLog[ex].rest || 90);
           renderExerciseList();
           updateVolumeOnly();
@@ -979,16 +1050,22 @@
     function saveWorkout() {
       const session = {
         id: uid(),
-        date: document.getElementById("sessionDate").value || todayISO(),
+        date: currentSessionMeta.date || todayISO(),
         day: selectedDay,
-        readiness: document.getElementById("readinessSelect").value,
-        notes: document.getElementById("sessionNotes").value,
+        readiness: currentSessionMeta.readiness,
+        notes: currentSessionMeta.notes,
         volume: calculateSessionVolume(currentLog),
         exercises: JSON.parse(JSON.stringify(currentLog))
       };
 
       state.history.unshift(session);
       currentLog = buildLogFromProgram(selectedDay);
+      currentSessionMeta = {
+        date: todayISO(),
+        readiness: "Normal",
+        notes: ""
+      };
+      clearDraft();
       saveState();
       render();
       alert("Workout saved.");
@@ -1081,6 +1158,7 @@
       document.getElementById("resetBtn").addEventListener("click", () => {
         if (!confirm("Reset all program, history and metrics data?")) return;
         state = seedState();
+        clearDraft();
         selectedDay = DEFAULT_DAY;
         currentLog = buildLogFromProgram(DEFAULT_DAY);
         saveState();
@@ -1468,6 +1546,13 @@
       const file = event.target.files && event.target.files[0];
       if (file) importData(file);
       event.target.value = "";
+    });
+
+    loadDraft();
+
+    window.addEventListener("beforeunload", saveDraft);
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) saveDraft();
     });
 
     runTests();
