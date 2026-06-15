@@ -712,6 +712,7 @@
           prescribedSets: setCount,
           prescribedReps: ex.reps || "",
           rest: Number(ex.rest) || 90,
+          type: ex.type || null,
           notes: "",
           sets: Array.from({ length: setCount }, () => ({ reps: "", weight: "", rpe: "", leftSec: "", rightSec: "", done: false }))
         };
