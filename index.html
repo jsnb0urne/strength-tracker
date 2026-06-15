@@ -559,15 +559,16 @@
         { name: "Standing Calf Raises", sets: 4, reps: "15-20", target: "Calves", rest: 45 },
         { name: "Box Step-ups", sets: 2, reps: "12 each side", target: "Control", rest: 60 }
       ],
+
       Core: [
         { name: "Dead Bug", sets: 3, reps: "8-10 each side", target: "Core Stability", rest: 45 },
-        { name: "Side Plank", sets: 3, reps: "30-45 sec each side", target: "Core Stability", rest: 45 },
+        { name: "Side Plank", sets: 3, reps: "30-45 sec each side", target: "Core Stability", rest: 45, type: "timed-side" },
         { name: "Pallof Press", sets: 3, reps: "10-12 each side", target: "Anti-Rotation", rest: 60 },
         { name: "Farmer Carry", sets: 3, reps: "30-40 m", target: "Bracing", rest: 60 },
-        { name: "Hip Flexor Stretch", sets: 1, reps: "60 sec each side", target: "Mobility", rest: 0 },
+        { name: "Hip Flexor Stretch", sets: 1, reps: "60 sec each side", target: "Mobility", rest: 0, type: "timed-side" },
         { name: "90/90 Hip Rotations", sets: 1, reps: "60 sec", target: "Mobility", rest: 0 },
-        { name: "Thoracic Rotations", sets: 1, reps: "60 sec each side", target: "Mobility", rest: 0 },
-        { name: "Calf Stretch", sets: 1, reps: "60 sec each side", target: "Mobility", rest: 0 }
+        { name: "Thoracic Rotations", sets: 1, reps: "60 sec each side", target: "Mobility", rest: 0, type: "timed-side" },
+        { name: "Calf Stretch", sets: 1, reps: "60 sec each side", target: "Mobility", rest: 0, type: "timed-side" }
       ]
     };
 
@@ -712,7 +713,7 @@
           prescribedReps: ex.reps || "",
           rest: Number(ex.rest) || 90,
           notes: "",
-          sets: Array.from({ length: setCount }, () => ({ reps: "", weight: "", rpe: "", done: false }))
+          sets: Array.from({ length: setCount }, () => ({ reps: "", weight: "", rpe: "", leftSec: "", rightSec: "", done: false }))
         };
       });
     }
@@ -1007,7 +1008,16 @@
             <span class="pill">${escapeHtml(progressionHint(exercise))}</span>
           </div>
           <div>
-            ${exercise.sets.map((set, setIndex) => `
+            ${exercise.sets.map((set, setIndex) => {
+              const isTimedSide = exercise.type === "timed-side";
+              return isTimedSide ? `
+              <div class="set-row ${set.done ? "done" : ""}">
+                <div class="set-label">Set ${setIndex + 1}</div>
+                <div class="mini-input"><label>Left sec</label><input inputmode="decimal" data-ex="${exerciseIndex}" data-set="${setIndex}" data-field="leftSec" value="${escapeHtml(set.leftSec || "")}" /></div>
+                <div class="mini-input"><label>Right sec</label><input inputmode="decimal" data-ex="${exerciseIndex}" data-set="${setIndex}" data-field="rightSec" value="${escapeHtml(set.rightSec || "")}" /></div>
+                <button class="check-btn ${set.done ? "active" : ""}" data-done-ex="${exerciseIndex}" data-done-set="${setIndex}">✓</button>
+              </div>
+              ` : `
               <div class="set-row ${set.done ? "done" : ""}">
                 <div class="set-label">Set ${setIndex + 1}</div>
                 <div class="mini-input"><label>Reps</label><input inputmode="decimal" data-ex="${exerciseIndex}" data-set="${setIndex}" data-field="reps" value="${escapeHtml(set.reps)}" /></div>
@@ -1015,7 +1025,8 @@
                 <div class="mini-input"><label>RPE</label><input inputmode="decimal" data-ex="${exerciseIndex}" data-set="${setIndex}" data-field="rpe" value="${escapeHtml(set.rpe)}" /></div>
                 <button class="check-btn ${set.done ? "active" : ""}" data-done-ex="${exerciseIndex}" data-done-set="${setIndex}">✓</button>
               </div>
-            `).join("")}
+              `;
+            }).join("")}
           </div>
           <textarea data-note-ex="${exerciseIndex}" placeholder="Exercise notes">${escapeHtml(exercise.notes)}</textarea>
         </section>
