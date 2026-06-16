@@ -742,12 +742,18 @@
     }
 
     function parseTopRep(text) {
-      const range = String(text).match(/(\d+)\s*-\s*(\d+)/);
-      if (range) return Number(range[2]);
-      const single = String(text).match(/\d+/);
-      return single ? Number(single[0]) : null;
-    }
-
+  const range = String(text).match(/(\d+)\s*-\s*(\d+)/);
+  if (range) return Number(range[2]);
+  const single = String(text).match(/\d+/);
+  return single ? Number(single[0]) : null;
+}
+function parseSeconds(text) {
+  const range = String(text).match(/(\d+)\s*-\s*(\d+)/);
+  if (range) return Number(range[2]);
+  const single = String(text).match(/\d+/);
+  return single ? Number(single[0]) : 0;
+}
+    
     function exerciseNamesFromHistory() {
       const names = new Set();
       state.history.forEach(session => {
@@ -1033,16 +1039,31 @@
         </section>
       `).join("");
 
-      container.querySelectorAll("input[data-field]").forEach(input => {
-        input.addEventListener("input", event => {
-          const ex = Number(event.target.dataset.ex);
-          const set = Number(event.target.dataset.set);
-          const field = event.target.dataset.field;
-          currentLog[ex].sets[set][field] = event.target.value;
-          saveDraft();
-          updateVolumeOnly();
-        });
-      });
+ container.querySelectorAll("input[data-field]").forEach(input => {
+
+  input.addEventListener("focus", event => {
+    const ex = Number(event.target.dataset.ex);
+    const exercise = currentLog[ex];
+
+    if (exercise.type === "timed-side") {
+      const seconds = parseSeconds(exercise.prescribedReps);
+      if (seconds > 0 && timerSeconds === 0) {
+        setTimer(seconds);
+      }
+    }
+  });
+
+  input.addEventListener("input", event => {
+    const ex = Number(event.target.dataset.ex);
+    const set = Number(event.target.dataset.set);
+    const field = event.target.dataset.field;
+
+    currentLog[ex].sets[set][field] = event.target.value;
+    saveDraft();
+    updateVolumeOnly();
+  });
+
+});
 
       container.querySelectorAll("textarea[data-note-ex]").forEach(textarea => {
         textarea.addEventListener("input", event => {
